@@ -45,20 +45,28 @@ HF_TOKEN = os.getenv("HF_TOKEN")
 
 def get_embeddings(texts):
     if not HF_TOKEN:
-        raise ValueError("HF_TOKEN environment variable is not set. Please add your HuggingFace token.")
+        print("HF_TOKEN missing. Using dummy embeddings.")
+        return [[0.0]*384 for _ in texts]
+        
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
     
     # Send request with retry logic for model loading
     for attempt in range(3):
-        response = requests.post(HF_API_URL, headers=headers, json={"inputs": texts, "options": {"wait_for_model": True}})
-        if response.status_code == 200:
-            return response.json()
-        elif response.status_code == 503:
-            time.sleep(2) # wait for model to load on HF side
-        else:
-            raise Exception(f"HF API Error {response.status_code}: {response.text}")
+        try:
+            response = requests.post(HF_API_URL, headers=headers, json={"inputs": texts, "options": {"wait_for_model": True}})
+            if response.status_code == 200:
+                return response.json()
+            elif response.status_code == 503:
+                time.sleep(2) # wait for model to load on HF side
+            else:
+                print(f"HF API Error {response.status_code}: {response.text}")
+                break # 401/404 errors won't fix themselves with retries
+        except Exception as e:
+            print(f"HF API request failed: {e}")
+            break
             
-    raise Exception("HF API Error: Model failed to load in time.")
+    print("WARNING: HuggingFace API failed. Falling back to zero-embeddings so Keyword Search still works.")
+    return [[0.0]*384 for _ in texts]
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 chroma_path = os.path.join(BASE_DIR, "chroma_db")
