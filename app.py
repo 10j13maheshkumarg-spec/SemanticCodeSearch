@@ -14,7 +14,6 @@ from fastapi import FastAPI, Request, BackgroundTasks, WebSocket, WebSocketDisco
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
-from sentence_transformers import SentenceTransformer
 import chromadb
 from rank_bm25 import BM25Okapi
 import zipfile
@@ -32,8 +31,25 @@ except Exception as e:
 
 app = FastAPI(title="Semantic Code Search API")
 
-MODEL_NAME = 'all-MiniLM-L6-v2'
-model = SentenceTransformer(MODEL_NAME)
+HF_API_URL = "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2"
+HF_TOKEN = os.getenv("HF_TOKEN")
+
+def get_embeddings(texts):
+    if not HF_TOKEN:
+        raise ValueError("HF_TOKEN environment variable is not set. Please add your HuggingFace token.")
+    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+    
+    # Send request with retry logic for model loading
+    for attempt in range(3):
+        response = requests.post(HF_API_URL, headers=headers, json={"inputs": texts, "options": {"wait_for_model": True}})
+        if response.status_code == 200:
+            return response.json()
+        elif response.status_code == 503:
+            time.sleep(2) # wait for model to load on HF side
+        else:
+            raise Exception(f"HF API Error {response.status_code}: {response.text}")
+            
+    raise Exception("HF API Error: Model failed to load in time.")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 chroma_path = os.path.join(BASE_DIR, "chroma_db")
@@ -304,11 +320,13 @@ async def ingest_folder(request: IngestRequest):
             pickle.dump(bm25_data, f)
 
         # Build Chroma Semantic Index using enriched texts
-        embeddings = model.encode(enriched_documents).tolist()
-        batch_size = 100
+        batch_size = 50 # HF API limits
         for i in range(0, len(raw_documents), batch_size):
+            batch_docs = enriched_documents[i:i+batch_size]
+            batch_embeddings = get_embeddings(batch_docs)
+            
             collection.upsert(
-                embeddings=embeddings[i:i+batch_size],
+                embeddings=batch_embeddings,
                 documents=raw_documents[i:i+batch_size],
                 metadatas=metadatas[i:i+batch_size],
                 ids=ids[i:i+batch_size]
@@ -334,8 +352,11 @@ async def search_code(search_query: SearchQuery):
         # 1. Semantic Search
         semantic_map = {}
         if search_query.search_mode in ["semantic", "hybrid"]:
-            query_embedding = model.encode([search_query.query]).tolist()
-            results = collection.query(query_embeddings=query_embedding, n_results=search_query.n_results * 2)
+            try:
+                query_embedding = get_embeddings([search_query.query])
+                results = collection.query(query_embeddings=query_embedding, n_results=search_query.n_results * 2)
+            except Exception as e:
+                return {"error": f"HF API Error: {str(e)}"}
             
             if results['documents'] and len(results['documents']) > 0:
                 for doc, meta, dist, doc_id in zip(results['documents'][0], results['metadatas'][0], results['distances'][0], results['ids'][0]):
