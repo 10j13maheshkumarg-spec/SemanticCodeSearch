@@ -1,0 +1,13 @@
+sentence-transformers
+chromadb
+fastapi
+uvicorn
+jinja2
+python-multipart
+requests
+rank_bm25
+python-dotenv
+groq
+watchdog
+aiofiles
+websockets

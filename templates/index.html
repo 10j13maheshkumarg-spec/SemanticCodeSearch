@@ -1,0 +1,1578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Semantic Code Search — Web IDE</title>
+    <meta name="description" content="A premium web-based IDE with semantic code search, AI chat, Monaco editor, and integrated terminal.">
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <!-- xterm.js (must load BEFORE Monaco loader to prevent AMD conflict) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
+
+    <!-- Monaco Editor -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/editor/editor.main.css">
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.min.js"></script>
+
+    <style>
+        /* ===== CSS VARIABLES ===== */
+        :root {
+            --bg-color: #0f172a;
+            --bg-card: rgba(30, 41, 59, 0.7);
+            --bg-darker: rgba(15, 23, 42, 0.6);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #3b82f6;
+            --accent-glow: rgba(59, 130, 246, 0.5);
+            --border: rgba(255, 255, 255, 0.1);
+            --bg-sidebar: #0d1117;
+            --bg-panel: #161b22;
+            --accent-green: #10b981;
+            --accent-red: #ef4444;
+            --accent-yellow: #f59e0b;
+            --accent-purple: #8b5cf6;
+            --sidebar-width: 250px;
+            --chat-width: 320px;
+            --terminal-height: 200px;
+        }
+
+        /* ===== RESET & BASE ===== */
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ===== SCROLLBAR ===== */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+        /* ===== TOP BAR ===== */
+        #topBar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            background: var(--bg-sidebar);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+            min-height: 44px;
+            flex-wrap: wrap;
+            z-index: 100;
+        }
+
+        #topBar .logo {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 700;
+            font-size: 0.85rem;
+            color: var(--text-main);
+            white-space: nowrap;
+            padding-right: 8px;
+            border-right: 1px solid var(--border);
+            margin-right: 4px;
+        }
+
+        #topBar .logo .logo-icon {
+            width: 22px;
+            height: 22px;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+
+        .tb-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .tb-select {
+            padding: 4px 8px;
+            font-size: 0.78rem;
+            border-radius: 5px;
+            border: 1px solid var(--border);
+            background: var(--bg-darker);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            outline: none;
+            appearance: none;
+            cursor: pointer;
+            max-width: 180px;
+            transition: border-color 0.2s;
+        }
+        .tb-select:focus { border-color: var(--accent); }
+
+        .tb-input {
+            padding: 5px 10px;
+            font-size: 0.78rem;
+            border-radius: 5px;
+            border: 1px solid var(--border);
+            background: var(--bg-darker);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .tb-input:focus { border-color: var(--accent); }
+        .tb-input.search-input { min-width: 240px; }
+
+        .tb-btn {
+            padding: 5px 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            color: #fff;
+            transition: all 0.2s;
+            white-space: nowrap;
+            font-family: 'Inter', sans-serif;
+        }
+        .tb-btn:hover { transform: translateY(-1px); }
+        .tb-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .tb-btn.primary { background: linear-gradient(135deg, #3b82f6, #8b5cf6); }
+        .tb-btn.primary:hover { box-shadow: 0 2px 10px var(--accent-glow); }
+        .tb-btn.green { background: linear-gradient(135deg, #10b981, #059669); }
+        .tb-btn.green:hover { box-shadow: 0 2px 10px rgba(16,185,129,0.4); }
+
+        .tb-separator {
+            width: 1px;
+            height: 20px;
+            background: var(--border);
+            margin: 0 4px;
+        }
+
+        .tb-radio-group {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            background: var(--bg-darker);
+            border-radius: 5px;
+            border: 1px solid var(--border);
+            padding: 2px;
+        }
+
+        .tb-radio-group label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 3px 8px;
+            border-radius: 4px;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .tb-radio-group label:has(input:checked) {
+            background: var(--accent);
+            color: #fff;
+        }
+
+        .tb-radio-group input[type="radio"] {
+            display: none;
+        }
+
+        .tb-status {
+            font-size: 0.73rem;
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 220px;
+        }
+
+        .tb-toggle-btn {
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 5px;
+            cursor: pointer;
+            color: var(--text-muted);
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+        .tb-toggle-btn:hover {
+            background: rgba(255,255,255,0.06);
+            color: var(--text-main);
+        }
+        .tb-toggle-btn.active {
+            color: var(--accent);
+            background: rgba(59,130,246,0.12);
+        }
+
+        /* ===== MAIN LAYOUT ===== */
+        #mainArea {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* ===== LEFT SIDEBAR (FILE TREE) ===== */
+        #sidebar {
+            width: var(--sidebar-width);
+            min-width: 180px;
+            max-width: 400px;
+            background: var(--bg-sidebar);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: width 0.2s;
+            flex-shrink: 0;
+            resize: horizontal;
+        }
+
+        #sidebar.collapsed {
+            width: 0;
+            min-width: 0;
+            border-right: none;
+            overflow: hidden;
+        }
+
+        .sidebar-header {
+            padding: 10px 14px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .sidebar-header .refresh-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 14px;
+            padding: 2px;
+            border-radius: 3px;
+            transition: all 0.2s;
+            line-height: 1;
+        }
+        .sidebar-header .refresh-btn:hover {
+            color: var(--text-main);
+            background: rgba(255,255,255,0.06);
+        }
+
+        #fileTreeContainer {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 4px 0;
+        }
+
+        .tree-node {
+            display: flex;
+            align-items: center;
+            padding: 3px 8px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            transition: all 0.15s;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            user-select: none;
+            border-radius: 3px;
+            margin: 0 4px;
+        }
+
+        .tree-node:hover {
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text-main);
+        }
+
+        .tree-node.active {
+            background: rgba(59, 130, 246, 0.15);
+            color: var(--accent);
+        }
+
+        .tree-node .icon {
+            margin-right: 5px;
+            flex-shrink: 0;
+            font-size: 14px;
+            width: 18px;
+            text-align: center;
+        }
+
+        .tree-node .arrow {
+            margin-right: 2px;
+            flex-shrink: 0;
+            font-size: 10px;
+            width: 14px;
+            text-align: center;
+            transition: transform 0.15s;
+            color: var(--text-muted);
+        }
+
+        .tree-node .arrow.open {
+            transform: rotate(90deg);
+        }
+
+        .tree-children {
+            overflow: hidden;
+        }
+
+        .tree-children.collapsed {
+            display: none;
+        }
+
+        .tree-node .name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* ===== CENTER AREA ===== */
+        #centerArea {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-width: 300px;
+        }
+
+        /* --- Tab Bar --- */
+        #tabBar {
+            display: flex;
+            align-items: center;
+            background: var(--bg-sidebar);
+            border-bottom: 1px solid var(--border);
+            min-height: 35px;
+            flex-shrink: 0;
+            overflow-x: auto;
+        }
+
+        .tab {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 14px;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-right: 1px solid var(--border);
+            white-space: nowrap;
+            transition: all 0.15s;
+            background: transparent;
+        }
+        .tab:hover { background: rgba(255,255,255,0.04); color: var(--text-main); }
+        .tab.active {
+            color: var(--text-main);
+            background: var(--bg-panel);
+            border-bottom: 2px solid var(--accent);
+        }
+        .tab .tab-close {
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.15s;
+            border-radius: 3px;
+            width: 18px;
+            height: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .tab:hover .tab-close { opacity: 0.6; }
+        .tab .tab-close:hover { opacity: 1; background: rgba(255,255,255,0.1); }
+
+        /* --- Editor / Results --- */
+        #editorArea {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #monacoContainer {
+            width: 100%;
+            height: 100%;
+            display: none;
+        }
+
+        #resultsArea {
+            width: 100%;
+            height: 100%;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        /* --- Results Cards --- */
+        .result-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            overflow: hidden;
+            opacity: 0;
+            transform: translateY(14px);
+            animation: slideUp 0.4s forwards ease-out;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s;
+        }
+
+        .result-card:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .card-header {
+            padding: 10px 14px;
+            background: rgba(255, 255, 255, 0.03);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .card-header:hover {
+            background: rgba(59, 130, 246, 0.08);
+        }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.78rem;
+            color: #cbd5e1;
+        }
+
+        .badge {
+            background: rgba(59, 130, 246, 0.2);
+            color: #93c5fd;
+            padding: 2px 7px;
+            border-radius: 5px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+
+        .score {
+            font-size: 0.75rem;
+            color: var(--accent-green);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            background: rgba(16, 185, 129, 0.1);
+            padding: 3px 7px;
+            border-radius: 5px;
+            white-space: nowrap;
+        }
+
+        .result-card pre {
+            margin: 0;
+            padding: 12px 14px;
+            overflow-x: auto;
+            background: rgba(0,0,0,0.2);
+        }
+
+        .result-card code {
+            font-family: 'Fira Code', monospace;
+            font-size: 0.82rem;
+            line-height: 1.5;
+            color: #e2e8f0;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 60px 20px;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        .empty-state .big-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        /* --- Loader --- */
+        .loader {
+            display: none;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-radius: 50%;
+            border-top: 3px solid var(--accent);
+            width: 24px;
+            height: 24px;
+            animation: spin 0.8s linear infinite;
+            margin: 40px auto;
+        }
+
+        /* --- Terminal --- */
+        #terminalArea {
+            height: var(--terminal-height);
+            min-height: 80px;
+            max-height: 500px;
+            border-top: 1px solid var(--border);
+            background: var(--bg-sidebar);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            resize: vertical;
+            overflow: hidden;
+        }
+
+        #terminalArea.collapsed {
+            height: 0;
+            min-height: 0;
+            border-top: none;
+            overflow: hidden;
+        }
+
+        .terminal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 4px 12px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+            background: var(--bg-sidebar);
+        }
+
+        .terminal-header button {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 14px;
+            padding: 2px 4px;
+            border-radius: 3px;
+            transition: all 0.2s;
+        }
+        .terminal-header button:hover {
+            color: var(--text-main);
+            background: rgba(255,255,255,0.06);
+        }
+
+        #terminalContainer {
+            flex: 1;
+            padding: 4px;
+            overflow: hidden;
+        }
+
+        /* ===== RIGHT PANEL (AI CHAT) ===== */
+        #chatPanel {
+            width: var(--chat-width);
+            min-width: 240px;
+            max-width: 500px;
+            background: var(--bg-panel);
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            flex-shrink: 0;
+            resize: horizontal;
+            direction: rtl;
+            transition: width 0.2s;
+        }
+        #chatPanel > * { direction: ltr; }
+
+        #chatPanel.collapsed {
+            width: 0;
+            min-width: 0;
+            border-left: none;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            padding: 12px 14px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--text-main);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .chat-header .sparkle {
+            font-size: 16px;
+        }
+
+        #chatMessages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .chat-msg {
+            max-width: 90%;
+            padding: 10px 13px;
+            border-radius: 12px;
+            font-size: 0.82rem;
+            line-height: 1.55;
+            animation: chatFadeIn 0.3s ease-out;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+        }
+
+        .chat-msg.user {
+            align-self: flex-end;
+            background: linear-gradient(135deg, #3b82f6, #7c3aed);
+            color: #fff;
+            border-bottom-right-radius: 4px;
+        }
+
+        .chat-msg.assistant {
+            align-self: flex-start;
+            background: var(--bg-card);
+            color: #e2e8f0;
+            border: 1px solid var(--border);
+            border-bottom-left-radius: 4px;
+        }
+
+        .chat-msg.error {
+            align-self: flex-start;
+            background: rgba(239,68,68,0.12);
+            color: #fca5a5;
+            border: 1px solid rgba(239,68,68,0.25);
+            border-bottom-left-radius: 4px;
+        }
+
+        .typing-indicator {
+            align-self: flex-start;
+            display: flex;
+            gap: 5px;
+            padding: 12px 16px;
+        }
+        .typing-indicator .dot {
+            width: 7px;
+            height: 7px;
+            background: var(--text-muted);
+            border-radius: 50%;
+            animation: typingBounce 1.2s infinite ease-in-out;
+        }
+        .typing-indicator .dot:nth-child(2) { animation-delay: 0.15s; }
+        .typing-indicator .dot:nth-child(3) { animation-delay: 0.3s; }
+
+        #chatInputArea {
+            padding: 10px 12px;
+            border-top: 1px solid var(--border);
+            flex-shrink: 0;
+            display: flex;
+            gap: 6px;
+        }
+
+        #chatInput {
+            flex: 1;
+            padding: 8px 12px;
+            font-size: 0.8rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--bg-darker);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            outline: none;
+            transition: border-color 0.2s;
+            resize: none;
+        }
+        #chatInput:focus { border-color: var(--accent); }
+
+        #chatSendBtn {
+            padding: 8px 14px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            color: #fff;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            transition: all 0.2s;
+            white-space: nowrap;
+            font-family: 'Inter', sans-serif;
+            flex-shrink: 0;
+        }
+        #chatSendBtn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 10px var(--accent-glow);
+        }
+        #chatSendBtn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+        /* ===== ANIMATIONS ===== */
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes slideUp { to { opacity: 1; transform: translateY(0); } }
+        @keyframes chatFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes typingBounce {
+            0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+
+        /* ===== STATUS BAR ===== */
+        #statusBar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 12px;
+            height: 24px;
+            background: var(--accent);
+            flex-shrink: 0;
+            font-size: 0.7rem;
+            color: #fff;
+        }
+        #statusBar .left, #statusBar .right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+    </style>
+</head>
+<body>
+
+<!-- ===== TOP BAR ===== -->
+<div id="topBar">
+    <div class="logo">
+        <div class="logo-icon">⚡</div>
+        <span>CodeSearch IDE</span>
+    </div>
+
+    <div class="tb-group">
+        <select id="projectSelect" class="tb-select" onchange="switchProject()">
+            <option value="">Loading...</option>
+        </select>
+    </div>
+
+    <div class="tb-separator"></div>
+
+    <div class="tb-group">
+        <input type="text" id="folderInput" class="tb-input" placeholder="Folder path to index..." style="min-width:180px;">
+        <button class="tb-btn primary" id="indexBtn" onclick="indexFolder()">Index</button>
+    </div>
+
+    <div class="tb-separator"></div>
+
+    <div class="tb-group">
+        <input type="text" id="searchInput" class="tb-input search-input" placeholder="Search your code with natural language..." onkeypress="handleKeyPress(event)">
+        <button class="tb-btn green" onclick="performSearch()">Search</button>
+    </div>
+
+    <div class="tb-radio-group">
+        <label><input type="radio" name="searchMode" value="semantic" checked>Semantic</label>
+        <label><input type="radio" name="searchMode" value="hybrid">Hybrid</label>
+        <label><input type="radio" name="searchMode" value="keyword">Keyword</label>
+    </div>
+
+    <div class="tb-separator"></div>
+
+    <span class="tb-status" id="indexStatus"></span>
+
+    <div style="flex:1;"></div>
+
+    <button class="tb-toggle-btn active" id="toggleSidebar" onclick="togglePanel('sidebar')" title="Toggle Explorer">📁</button>
+    <button class="tb-toggle-btn active" id="toggleTerminal" onclick="togglePanel('terminal')" title="Toggle Terminal">⬛</button>
+    <button class="tb-toggle-btn active" id="toggleChat" onclick="togglePanel('chat')" title="Toggle AI Chat">💬</button>
+</div>
+
+<!-- ===== MAIN LAYOUT ===== -->
+<div id="mainArea">
+
+    <!-- LEFT SIDEBAR -->
+    <div id="sidebar">
+        <div class="sidebar-header">
+            <span>Explorer</span>
+            <button class="refresh-btn" onclick="loadFileTree()" title="Refresh">🔄</button>
+        </div>
+        <div id="fileTreeContainer">
+            <div class="empty-state" style="padding:30px 14px; font-size: 0.78rem;">
+                <div class="big-icon">📂</div>
+                Select a project to view files.
+            </div>
+        </div>
+    </div>
+
+    <!-- CENTER -->
+    <div id="centerArea">
+        <!-- Tab Bar -->
+        <div id="tabBar">
+            <div class="tab active" id="tabResults" onclick="showResults()">
+                <span>🔍</span>
+                <span>Search Results</span>
+            </div>
+        </div>
+
+        <!-- Editor / Results -->
+        <div id="editorArea">
+            <div id="monacoContainer"></div>
+            <div id="resultsArea">
+                <div class="loader" id="loader"></div>
+                <div class="empty-state" id="emptyState">
+                    <div class="big-icon">🔎</div>
+                    <strong style="font-size:1.1rem;">Semantic Code Search</strong><br><br>
+                    Enter a natural language query to search your codebase.<br>
+                    <span style="opacity:0.6; font-size:0.82rem;">Results will appear here. Click any result to open it in the editor.</span>
+                </div>
+                <div id="resultsContainer"></div>
+            </div>
+        </div>
+
+        <!-- Terminal -->
+        <div id="terminalArea">
+            <div class="terminal-header">
+                <span>Terminal</span>
+                <button onclick="togglePanel('terminal')" title="Close Terminal">✕</button>
+            </div>
+            <div id="terminalContainer"></div>
+        </div>
+    </div>
+
+    <!-- RIGHT PANEL (AI CHAT) -->
+    <div id="chatPanel">
+        <div class="chat-header">
+            <span class="sparkle">✨</span>
+            AI Assistant
+        </div>
+        <div id="chatMessages">
+            <div class="chat-msg assistant">
+                Hello! I'm your AI coding assistant. Search for code and ask me questions about the results. I can explain, refactor, debug, and more.
+            </div>
+        </div>
+        <div id="chatInputArea">
+            <input type="text" id="chatInput" placeholder="Ask about your code..." onkeypress="if(event.key==='Enter')sendChatMessage()">
+            <button id="chatSendBtn" onclick="sendChatMessage()">Send</button>
+        </div>
+    </div>
+
+</div>
+
+<!-- ===== STATUS BAR ===== -->
+<div id="statusBar">
+    <div class="left">
+        <span id="statusProject">No project</span>
+        <span id="statusFile">—</span>
+    </div>
+    <div class="right">
+        <span id="statusLang">—</span>
+        <span>UTF-8</span>
+    </div>
+</div>
+
+<!-- ===== JAVASCRIPT ===== -->
+<script>
+    // ===== GLOBAL STATE =====
+    let editor = null;
+    let currentFilePath = null;
+    let currentLanguage = null;
+    let chatHistory = [];
+    let chatContext = [];
+    let terminal = null;
+    let terminalFitAddon = null;
+    let terminalWs = null;
+    let fileTreeData = [];
+    let lastQuery = '';
+    let lastResults = [];
+
+    // ===== PANEL TOGGLES =====
+    function togglePanel(panel) {
+        if (panel === 'sidebar') {
+            const el = document.getElementById('sidebar');
+            el.classList.toggle('collapsed');
+            document.getElementById('toggleSidebar').classList.toggle('active');
+        } else if (panel === 'terminal') {
+            const el = document.getElementById('terminalArea');
+            el.classList.toggle('collapsed');
+            document.getElementById('toggleTerminal').classList.toggle('active');
+            if (!el.classList.contains('collapsed') && terminalFitAddon) {
+                setTimeout(() => terminalFitAddon.fit(), 100);
+            }
+        } else if (panel === 'chat') {
+            const el = document.getElementById('chatPanel');
+            el.classList.toggle('collapsed');
+            document.getElementById('toggleChat').classList.toggle('active');
+        }
+        if (editor) setTimeout(() => editor.layout(), 200);
+    }
+
+    // ===== FILE ICON HELPER =====
+    function getFileIcon(filename) {
+        const ext = filename.split('.').pop().toLowerCase();
+        const icons = {
+            'py': '🐍', 'js': '📜', 'jsx': '⚛️', 'ts': '🔷', 'tsx': '⚛️',
+            'html': '🌐', 'htm': '🌐', 'css': '🎨', 'scss': '🎨',
+            'md': '📝', 'json': '📋', 'yaml': '📋', 'yml': '📋',
+            'toml': '⚙️', 'cfg': '⚙️', 'ini': '⚙️', 'env': '⚙️',
+            'sh': '💲', 'bash': '💲', 'bat': '💲', 'ps1': '💲',
+            'sql': '🗃️', 'db': '🗃️', 'svg': '🖼️', 'png': '🖼️', 'jpg': '🖼️',
+            'gif': '🖼️', 'ico': '🖼️', 'txt': '📄', 'log': '📄',
+            'xml': '📰', 'csv': '📊', 'lock': '🔒', 'gitignore': '🔒',
+            'rs': '🦀', 'go': '🐹', 'java': '☕', 'cpp': '⚙️', 'c': '⚙️',
+            'h': '⚙️', 'rb': '💎', 'php': '🐘', 'r': '📈', 'dart': '🎯',
+        };
+        return icons[ext] || '📄';
+    }
+
+    // ===== LANGUAGE DETECTION FOR MONACO =====
+    function detectLanguage(filepath) {
+        const ext = filepath.split('.').pop().toLowerCase();
+        const langMap = {
+            'py': 'python', 'js': 'javascript', 'jsx': 'javascript', 'ts': 'typescript',
+            'tsx': 'typescript', 'html': 'html', 'htm': 'html', 'css': 'css', 'scss': 'scss',
+            'json': 'json', 'md': 'markdown', 'yaml': 'yaml', 'yml': 'yaml',
+            'xml': 'xml', 'sql': 'sql', 'sh': 'shell', 'bash': 'shell',
+            'bat': 'bat', 'ps1': 'powershell', 'java': 'java', 'cpp': 'cpp',
+            'c': 'c', 'h': 'c', 'go': 'go', 'rs': 'rust', 'rb': 'ruby',
+            'php': 'php', 'r': 'r', 'dart': 'dart', 'toml': 'ini', 'cfg': 'ini',
+            'ini': 'ini', 'txt': 'plaintext', 'log': 'plaintext', 'csv': 'plaintext',
+        };
+        return langMap[ext] || 'plaintext';
+    }
+
+    // ===== INIT MONACO =====
+    function initMonaco() {
+        return new Promise((resolve) => {
+            require.config({ paths: { 'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs' }});
+            require(['vs/editor/editor.main'], function() {
+                editor = monaco.editor.create(document.getElementById('monacoContainer'), {
+                    value: '',
+                    language: 'plaintext',
+                    theme: 'vs-dark',
+                    readOnly: false,
+                    minimap: { enabled: true },
+                    fontSize: 14,
+                    fontFamily: "'Fira Code', monospace",
+                    fontLigatures: true,
+                    scrollBeyondLastLine: false,
+                    automaticLayout: true,
+                    padding: { top: 10 },
+                    smoothScrolling: true,
+                    cursorBlinking: 'smooth',
+                    cursorSmoothCaretAnimation: 'on',
+                    renderLineHighlight: 'all',
+                    bracketPairColorization: { enabled: true },
+                });
+                resolve();
+            });
+        });
+    }
+
+    // ===== INIT TERMINAL =====
+    function initTerminal() {
+        try {
+            // Handle xterm.js v5 CDN export format
+            let TermClass = window.Terminal;
+            if (typeof TermClass === 'object' && TermClass.Terminal) {
+                TermClass = TermClass.Terminal;
+            }
+
+            terminal = new TermClass({
+                cursorBlink: true,
+                fontSize: 13,
+                fontFamily: "'Fira Code', monospace",
+                theme: {
+                    background: '#0d1117',
+                    foreground: '#c9d1d9',
+                    cursor: '#58a6ff',
+                    selectionBackground: 'rgba(59,130,246,0.3)',
+                    black: '#484f58',
+                    red: '#ff7b72',
+                    green: '#3fb950',
+                    yellow: '#d29922',
+                    blue: '#58a6ff',
+                    magenta: '#bc8cff',
+                    cyan: '#39c5cf',
+                    white: '#b1bac4',
+                },
+                allowProposedApi: true,
+            });
+            
+            try {
+                if (window.FitAddon && window.FitAddon.FitAddon) {
+                    terminalFitAddon = new window.FitAddon.FitAddon();
+                } else if (typeof FitAddon !== 'undefined' && FitAddon.FitAddon) {
+                    terminalFitAddon = new FitAddon.FitAddon();
+                }
+                if (terminalFitAddon) {
+                    terminal.loadAddon(terminalFitAddon);
+                }
+            } catch(e) { console.error("FitAddon error:", e); }
+
+            terminal.open(document.getElementById('terminalContainer'));
+
+            if (terminalFitAddon) {
+                setTimeout(() => { try { terminalFitAddon.fit(); } catch(e){} }, 100);
+            }
+
+            // Resize observer
+            const resizeObserver = new ResizeObserver(() => {
+                if (terminalFitAddon) {
+                    try { terminalFitAddon.fit(); } catch(e) {}
+                }
+            });
+            resizeObserver.observe(document.getElementById('terminalArea'));
+
+            // Connect WebSocket
+            connectTerminalWs();
+        } catch (error) {
+            document.getElementById('terminalContainer').innerHTML = `<div style="color:red; padding:10px; font-family:monospace;">Fatal Terminal Error: ${escapeHtml(error.toString())}<br>${escapeHtml(error.stack || '')}</div>`;
+        }
+    }
+
+    function connectTerminalWs() {
+        const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+        const wsUrl = `${protocol}://${location.hostname}:8001/ws/terminal`;
+
+        try {
+            terminalWs = new WebSocket(wsUrl);
+
+            terminalWs.onopen = () => {
+                terminal.write('\x1b[32m● Connected to terminal.\x1b[0m\r\n');
+            };
+
+            terminalWs.onmessage = (event) => {
+                terminal.write(event.data);
+            };
+
+            terminalWs.onclose = () => {
+                terminal.write('\r\n\x1b[31m● Connection closed.\x1b[0m\r\n');
+            };
+
+            terminalWs.onerror = () => {
+                terminal.write('\r\n\x1b[31m● WebSocket error.\x1b[0m\r\n');
+            };
+
+            terminal.onData((data) => {
+                if (terminalWs && terminalWs.readyState === WebSocket.OPEN) {
+                    terminalWs.send(data);
+                }
+            });
+        } catch(e) {
+            terminal.write('\x1b[31m● Failed to connect terminal WebSocket.\x1b[0m\r\n');
+        }
+    }
+
+    // ===== FILE TREE =====
+    async function loadFileTree() {
+        const container = document.getElementById('fileTreeContainer');
+        try {
+            const res = await fetch('/api/file_tree');
+            const data = await res.json();
+            if (data.error) {
+                container.innerHTML = `<div class="empty-state" style="padding:20px 14px; font-size:0.78rem; color:#fca5a5;">⚠️ ${escapeHtml(data.error)}</div>`;
+                return;
+            }
+            fileTreeData = data.tree || [];
+            container.innerHTML = '';
+            if (fileTreeData.length === 0) {
+                container.innerHTML = '<div class="empty-state" style="padding:30px 14px; font-size:0.78rem;"><div class="big-icon">📂</div>No files found.</div>';
+                return;
+            }
+            renderTree(container, fileTreeData, 0);
+        } catch(e) {
+            container.innerHTML = '<div class="empty-state" style="padding:30px 14px; font-size:0.78rem;"><div class="big-icon">📂</div>Select a project to view files.</div>';
+        }
+    }
+
+    function renderTree(container, nodes, depth) {
+        nodes.forEach(node => {
+            const el = document.createElement('div');
+
+            if (node.type === 'dir') {
+                // Folder node
+                const folderDiv = document.createElement('div');
+                folderDiv.className = 'tree-node';
+                folderDiv.style.paddingLeft = (8 + depth * 16) + 'px';
+
+                const arrow = document.createElement('span');
+                arrow.className = 'arrow';
+                arrow.textContent = '▶';
+                folderDiv.appendChild(arrow);
+
+                const icon = document.createElement('span');
+                icon.className = 'icon';
+                icon.textContent = '📁';
+                folderDiv.appendChild(icon);
+
+                const name = document.createElement('span');
+                name.className = 'name';
+                name.textContent = node.name;
+                folderDiv.appendChild(name);
+
+                el.appendChild(folderDiv);
+
+                const childContainer = document.createElement('div');
+                childContainer.className = 'tree-children collapsed';
+
+                if (node.children && node.children.length > 0) {
+                    renderTree(childContainer, node.children, depth + 1);
+                }
+
+                el.appendChild(childContainer);
+
+                folderDiv.addEventListener('click', () => {
+                    toggleFolder(folderDiv, childContainer, icon, arrow);
+                });
+            } else {
+                // File node
+                const fileDiv = document.createElement('div');
+                fileDiv.className = 'tree-node';
+                fileDiv.style.paddingLeft = (8 + depth * 16 + 14) + 'px';
+                fileDiv.dataset.filepath = node.path;
+
+                const icon = document.createElement('span');
+                icon.className = 'icon';
+                icon.textContent = getFileIcon(node.name);
+                fileDiv.appendChild(icon);
+
+                const name = document.createElement('span');
+                name.className = 'name';
+                name.textContent = node.name;
+                fileDiv.appendChild(name);
+
+                fileDiv.addEventListener('click', () => {
+                    openFileInEditor(node.path);
+                });
+
+                el.appendChild(fileDiv);
+            }
+
+            container.appendChild(el);
+        });
+    }
+
+    function toggleFolder(folderDiv, childContainer, icon, arrow) {
+        const isCollapsed = childContainer.classList.contains('collapsed');
+        childContainer.classList.toggle('collapsed');
+        icon.textContent = isCollapsed ? '📂' : '📁';
+        arrow.classList.toggle('open', isCollapsed);
+    }
+
+    // ===== EDITOR =====
+    function openFileInEditor(filepath, startLine) {
+        if (!editor) return;
+
+        fetch(`/api/file_content?path=${encodeURIComponent(filepath)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Error loading file: ' + data.error);
+                    return;
+                }
+
+                currentFilePath = filepath;
+                currentLanguage = data.language || detectLanguage(filepath);
+
+                const model = monaco.editor.createModel(data.content, currentLanguage);
+                const oldModel = editor.getModel();
+                editor.setModel(model);
+                if (oldModel) oldModel.dispose();
+
+                showEditor();
+
+                // Update tab bar
+                updateEditorTab(data.filename || filepath.split(/[/\\]/).pop(), filepath);
+
+                // Highlight active file in tree
+                highlightActiveFile(filepath);
+
+                // Status bar
+                document.getElementById('statusFile').textContent = filepath.split(/[/\\]/).pop();
+                document.getElementById('statusLang').textContent = currentLanguage;
+
+                if (startLine) {
+                    setTimeout(() => {
+                        editor.revealLineInCenter(startLine);
+                        editor.setSelection(new monaco.Range(startLine, 1, startLine + 1, 1));
+                        editor.deltaDecorations([], [{
+                            range: new monaco.Range(startLine, 1, startLine, 1),
+                            options: {
+                                isWholeLine: true,
+                                className: 'highlighted-line',
+                                glyphMarginClassName: 'highlighted-glyph',
+                            }
+                        }]);
+                    }, 50);
+                }
+            })
+            .catch(err => {
+                console.error('Failed to load file:', err);
+            });
+    }
+
+    function highlightActiveFile(filepath) {
+        document.querySelectorAll('#fileTreeContainer .tree-node').forEach(n => n.classList.remove('active'));
+        document.querySelectorAll('#fileTreeContainer .tree-node[data-filepath]').forEach(n => {
+            if (n.dataset.filepath === filepath) {
+                n.classList.add('active');
+            }
+        });
+    }
+
+    function updateEditorTab(filename, filepath) {
+        const tabBar = document.getElementById('tabBar');
+        // Check if file tab already exists
+        let existingTab = tabBar.querySelector(`.tab[data-filepath="${CSS.escape(filepath)}"]`);
+        if (!existingTab) {
+            const tab = document.createElement('div');
+            tab.className = 'tab';
+            tab.dataset.filepath = filepath;
+            tab.innerHTML = `
+                <span>${getFileIcon(filename)}</span>
+                <span>${escapeHtml(filename)}</span>
+                <span class="tab-close" onclick="event.stopPropagation(); closeFileTab(this.parentElement);">✕</span>
+            `;
+            tab.onclick = () => openFileInEditor(filepath);
+            tabBar.appendChild(tab);
+            existingTab = tab;
+        }
+
+        // Make this tab active
+        tabBar.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        existingTab.classList.add('active');
+
+        // Deactivate results tab
+        const resultsTab = document.getElementById('tabResults');
+        if (resultsTab) resultsTab.classList.remove('active');
+    }
+
+    function closeFileTab(tabEl) {
+        const filepath = tabEl.dataset.filepath;
+        tabEl.remove();
+
+        // If we closed the current file, go back to results
+        if (currentFilePath === filepath) {
+            currentFilePath = null;
+            showResults();
+        }
+    }
+
+    function showEditor() {
+        document.getElementById('monacoContainer').style.display = 'block';
+        document.getElementById('resultsArea').style.display = 'none';
+
+        const tabBar = document.getElementById('tabBar');
+        const resultsTab = document.getElementById('tabResults');
+        if (resultsTab) resultsTab.classList.remove('active');
+
+        if (editor) editor.layout();
+    }
+
+    function showResults() {
+        document.getElementById('monacoContainer').style.display = 'none';
+        document.getElementById('resultsArea').style.display = 'flex';
+
+        const tabBar = document.getElementById('tabBar');
+        tabBar.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+
+        const resultsTab = document.getElementById('tabResults');
+        if (resultsTab) resultsTab.classList.add('active');
+
+        currentFilePath = null;
+        document.getElementById('statusFile').textContent = '—';
+        document.getElementById('statusLang').textContent = '—';
+    }
+
+    // ===== PROJECTS =====
+    async function loadProjects() {
+        try {
+            const res = await fetch('/api/projects');
+            const data = await res.json();
+            const select = document.getElementById('projectSelect');
+            select.innerHTML = '<option value="">— Select Project —</option>';
+
+            data.projects.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p;
+                const parts = p.replace(/\\\\/g, '/').split('/');
+                opt.textContent = parts[parts.length - 1] || p;
+                opt.title = p;
+                if (data.active === p) opt.selected = true;
+                select.appendChild(opt);
+            });
+
+            if (data.active) {
+                const parts = data.active.replace(/\\\\/g, '/').split('/');
+                document.getElementById('indexStatus').innerHTML = `<span style="color:#10b981;">● ${parts[parts.length - 1] || data.active}</span>`;
+                document.getElementById('statusProject').textContent = parts[parts.length - 1] || data.active;
+            }
+        } catch (e) {
+            console.error('loadProjects error:', e);
+        }
+    }
+
+    async function switchProject() {
+        const path = document.getElementById('projectSelect').value;
+        if (!path) return;
+
+        const status = document.getElementById('indexStatus');
+        status.innerHTML = '<span style="color:var(--text-muted);">Switching...</span>';
+
+        try {
+            const res = await fetch('/api/projects/set', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ folder_path: path })
+            });
+            const data = await res.json();
+            if (data.error) {
+                status.innerHTML = `<span style="color:#ef4444;">❌ ${escapeHtml(data.error)}</span>`;
+            } else {
+                const parts = data.active.replace(/\\\\/g, '/').split('/');
+                status.innerHTML = `<span style="color:#10b981;">● ${parts[parts.length - 1] || data.active}</span>`;
+                document.getElementById('statusProject').textContent = parts[parts.length - 1] || data.active;
+                document.getElementById('resultsContainer').innerHTML = '';
+                document.getElementById('emptyState').style.display = '';
+                showResults();
+                await loadFileTree();
+            }
+        } catch (e) {
+            status.innerHTML = '<span style="color:#ef4444;">❌ Failed to switch.</span>';
+        }
+    }
+
+    async function indexFolder() {
+        const folderPath = document.getElementById('folderInput').value.trim();
+        if (!folderPath) {
+            alert('Please enter a valid folder path.');
+            return;
+        }
+
+        const btn = document.getElementById('indexBtn');
+        const status = document.getElementById('indexStatus');
+
+        btn.disabled = true;
+        btn.textContent = 'Indexing...';
+        status.innerHTML = '<span style="color:var(--text-muted);">Scanning and indexing files...</span>';
+
+        try {
+            const response = await fetch('/api/ingest', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ folder_path: folderPath })
+            });
+
+            const data = await response.json();
+
+            if (data.error) {
+                status.innerHTML = `<span style="color:#ef4444;">❌ ${escapeHtml(data.error)}</span>`;
+            } else {
+                status.innerHTML = `<span style="color:#10b981;">✅ ${escapeHtml(data.message)}</span>`;
+                await loadProjects();
+                document.getElementById('folderInput').value = '';
+                await loadFileTree();
+            }
+        } catch (error) {
+            status.innerHTML = '<span style="color:#ef4444;">❌ Failed to connect to backend.</span>';
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Index';
+        }
+    }
+
+    // ===== SEARCH =====
+    async function performSearch() {
+        const query = document.getElementById('searchInput').value.trim();
+        if (!query) return;
+
+        const searchMode = document.querySelector('input[name="searchMode"]:checked').value;
+        const resultsContainer = document.getElementById('resultsContainer');
+        const loader = document.getElementById('loader');
+        const emptyState = document.getElementById('emptyState');
+
+        // Show results view
+        showResults();
+
+        resultsContainer.innerHTML = '';
+        emptyState.style.display = 'none';
+        loader.style.display = 'block';
+
+        try {
+            const response = await fetch('/api/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query: query, n_results: 8, search_mode: searchMode })
+            });
+
+            const data = await response.json();
+            loader.style.display = 'none';
+
+            if (data.error) {
+                resultsContainer.innerHTML = `<div class="empty-state" style="color: #fca5a5;">❌ Error: ${escapeHtml(data.error)}</div>`;
+                return;
+            }
+
+            if (!data.results || data.results.length === 0) {
+                resultsContainer.innerHTML = '<div class="empty-state"><div class="big-icon">🤷</div>No relevant results found.<br><span style="opacity:0.6;">Try a different query or check your indexed project.</span></div>';
+                return;
+            }
+
+            lastQuery = query;
+            lastResults = data.results;
+            chatContext = data.results;
+
+            data.results.forEach((result, index) => {
+                const card = document.createElement('div');
+                card.className = 'result-card';
+                card.style.animationDelay = `${index * 0.1}s`;
+
+                const pathParts = result.filepath.replace(/\\\\/g, '/').split('/');
+                const shortPath = pathParts.slice(-Math.min(3, pathParts.length)).join('/');
+
+                card.innerHTML = `
+                    <div class="card-header" onclick="openFileInEditor('${escapeHtml(result.filepath.replace(/\\/g, '\\\\'))}', ${result.start_line})" title="Click to open in editor">
+                        <div class="file-info">
+                            <span class="badge">${escapeHtml(result.header)}</span>
+                            <span>${escapeHtml(shortPath)} : ${result.start_line}–${result.end_line}</span>
+                        </div>
+                        <div class="score">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                            ${(result.similarity_score * 100).toFixed(1)}%
+                        </div>
+                    </div>
+                    <pre><code>${escapeHtml(result.code)}</code></pre>
+                `;
+                resultsContainer.appendChild(card);
+            });
+
+        } catch (error) {
+            loader.style.display = 'none';
+            resultsContainer.innerHTML = '<div class="empty-state" style="color: #fca5a5;">❌ Failed to connect to search engine.</div>';
+        }
+    }
+
+    // ===== AI CHAT =====
+    function renderChatMessage(role, content) {
+        const messagesDiv = document.getElementById('chatMessages');
+        const msg = document.createElement('div');
+        msg.className = `chat-msg ${role}`;
+        msg.textContent = content;
+        messagesDiv.appendChild(msg);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    function showTypingIndicator() {
+        const messagesDiv = document.getElementById('chatMessages');
+        const indicator = document.createElement('div');
+        indicator.className = 'typing-indicator';
+        indicator.id = 'typingIndicator';
+        indicator.innerHTML = '<div class="dot"></div><div class="dot"></div><div class="dot"></div>';
+        messagesDiv.appendChild(indicator);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    function removeTypingIndicator() {
+        const el = document.getElementById('typingIndicator');
+        if (el) el.remove();
+    }
+
+    async function sendChatMessage() {
+        const input = document.getElementById('chatInput');
+        const message = input.value.trim();
+        if (!message) return;
+
+        input.value = '';
+        document.getElementById('chatSendBtn').disabled = true;
+
+        chatHistory.push({ role: 'user', content: message });
+        renderChatMessage('user', message);
+        showTypingIndicator();
+
+        try {
+            const res = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    query: message,
+                    results: chatContext,
+                    history: chatHistory
+                })
+            });
+
+            removeTypingIndicator();
+            const data = await res.json();
+
+            if (data.error) {
+                renderChatMessage('error', 'Error: ' + data.error);
+            } else {
+                chatHistory.push({ role: 'assistant', content: data.answer });
+                renderChatMessage('assistant', data.answer);
+            }
+        } catch(e) {
+            removeTypingIndicator();
+            renderChatMessage('error', 'Failed to connect to AI server.');
+        }
+
+        document.getElementById('chatSendBtn').disabled = false;
+        document.getElementById('chatInput').focus();
+    }
+
+    // ===== UTILITIES =====
+    function handleKeyPress(event) {
+        if (event.key === 'Enter') {
+            performSearch();
+        }
+    }
+
+    function escapeHtml(unsafe) {
+        if (!unsafe) return '';
+        return unsafe
+             .replace(/&/g, "&amp;")
+             .replace(/</g, "&lt;")
+             .replace(/>/g, "&gt;")
+             .replace(/"/g, "&quot;")
+             .replace(/'/g, "&#039;");
+    }
+
+    // ===== INIT =====
+    window.onload = async function() {
+        try { initTerminal(); } catch(e) { console.error("Terminal init failed:", e); }
+        await loadProjects();
+        loadFileTree();
+        
+        try { await initMonaco(); } catch(e) { console.error("Monaco init failed:", e); }
+
+        // Global keyboard shortcut: Ctrl+P to focus search
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+                e.preventDefault();
+                document.getElementById('searchInput').focus();
+            }
+        });
+
+        // Inject highlighted-line style for Monaco
+        const styleTag = document.createElement('style');
+        styleTag.textContent = `.highlighted-line { background: rgba(59,130,246,0.18) !important; }`;
+        document.head.appendChild(styleTag);
+    };
+</script>
+
+</body>
+</html>

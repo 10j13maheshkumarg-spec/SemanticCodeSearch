@@ -1,0 +1,25 @@
+# Environments
+venv/
+env/
+.env/
+.env
+
+# ChromaDB Local Storage
+chroma_db/
+
+# Large Model Caches (HuggingFace)
+.cache/
+huggingface/
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDEs
+.vscode/
+.idea/
+
+# OS Files
+.DS_Store
+Thumbs.db
