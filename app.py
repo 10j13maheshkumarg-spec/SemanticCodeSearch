@@ -17,8 +17,9 @@ from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
 import chromadb
 from rank_bm25 import BM25Okapi
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
+import zipfile
+import io
+import shutil
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -66,32 +67,46 @@ def get_collection_name(folder_path):
 def tokenize(text):
     return re.findall(r'\w+', text.lower())
 
-class SyncHandler(FileSystemEventHandler):
-    def __init__(self, folder_path):
-        self.folder_path = folder_path
-        self.last_sync = 0
+def download_github_repo(github_url):
+    # Parse github URL (e.g. https://github.com/user/repo)
+    clean_url = github_url.strip().rstrip('/')
+    if not clean_url.startswith("https://github.com/"):
+        raise ValueError("Invalid GitHub URL. Must start with https://github.com/")
         
-    def on_modified(self, event):
-        if not event.is_directory and not any(ignored in event.src_path for ignored in ['.git', 'venv', 'chroma_db', '__pycache__', '.env', 'projects.json']):
-            now = time.time()
-            if now - self.last_sync > 5: # debounce 5s
-                self.last_sync = now
-                print(f"File modified: {event.src_path} -> Auto-syncing...")
-                try:
-                    # Hit our own ingest API in the background
-                    requests.post("http://127.0.0.1:8001/api/ingest", json={"folder_path": self.folder_path})
-                except Exception as e:
-                    print(f"Auto-sync failed: {e}")
-
-def start_watcher(folder_path):
-    global observer
-    if observer:
-        observer.stop()
-        observer.join()
-    observer = Observer()
-    observer.schedule(SyncHandler(folder_path), folder_path, recursive=True)
-    observer.start()
-    print(f"Started live file watching on: {folder_path}")
+    parts = clean_url.split('/')
+    if len(parts) < 5:
+        raise ValueError("Invalid GitHub URL format.")
+        
+    owner = parts[-2]
+    repo = parts[-1]
+    
+    # Try downloading main branch first, then master
+    branches = ['main', 'master']
+    zip_url = None
+    resp = None
+    
+    for branch in branches:
+        url = f"https://github.com/{owner}/{repo}/archive/refs/heads/{branch}.zip"
+        r = requests.get(url, stream=True)
+        if r.status_code == 200:
+            zip_url = url
+            resp = r
+            break
+            
+    if not resp or resp.status_code != 200:
+        raise ValueError(f"Could not download repository. Ensure it is public and has a main/master branch.")
+        
+    # Save and extract to repos/owner/repo
+    repo_dir = os.path.join(BASE_DIR, "repos", owner, f"{repo}-{branch}")
+    
+    if os.path.exists(repo_dir):
+        shutil.rmtree(repo_dir)
+        
+    with zipfile.ZipFile(io.BytesIO(resp.content)) as z:
+        z.extractall(os.path.join(BASE_DIR, "repos", owner))
+        
+    # The extracted folder is usually named repo-branch
+    return repo_dir
 
 def extract_python_chunks(source, filepath):
     chunks = []
@@ -195,10 +210,10 @@ class SearchQuery(BaseModel):
     search_mode: str = "semantic" # can be semantic, keyword, or hybrid
 
 class IngestRequest(BaseModel):
-    folder_path: str
+    github_url: str
     
 class SetProjectRequest(BaseModel):
-    folder_path: str
+    github_url: str
 
 class ChatRequest(BaseModel):
     query: str
@@ -216,13 +231,12 @@ async def api_get_projects():
     if active_collection_name is None and projects:
         active_folder_path = projects[-1]
         active_collection_name = get_collection_name(active_folder_path)
-        start_watcher(active_folder_path)
     return {"projects": projects, "active": active_folder_path}
 
 @app.post("/api/projects/set")
 async def api_set_project(request: SetProjectRequest):
     global active_collection_name, active_folder_path
-    folder_path = request.folder_path
+    folder_path = request.github_url
     if folder_path not in get_projects():
         return {"error": "Project not found in history."}
         
@@ -231,7 +245,6 @@ async def api_set_project(request: SetProjectRequest):
         client.get_collection(name=coll_name)
         active_collection_name = coll_name
         active_folder_path = folder_path
-        start_watcher(active_folder_path)
         return {"message": "Project switched successfully.", "active": folder_path}
     except Exception:
         return {"error": "Project database not found. Please re-index."}
@@ -239,12 +252,14 @@ async def api_set_project(request: SetProjectRequest):
 @app.post("/api/ingest")
 async def ingest_folder(request: IngestRequest):
     global active_collection_name, active_folder_path
-    folder_path = request.folder_path.strip().strip('"').strip("'")
+    github_url = request.github_url.strip().strip('"').strip("'")
     
-    if not os.path.exists(folder_path) or not os.path.isdir(folder_path):
-        return {"error": f"Folder '{folder_path}' is not valid."}
+    try:
+        folder_path = download_github_repo(github_url)
+    except Exception as e:
+        return {"error": str(e)}
         
-    coll_name = get_collection_name(folder_path)
+    coll_name = get_collection_name(github_url)
     try:
         client.delete_collection(name=coll_name)
     except Exception:
@@ -299,11 +314,10 @@ async def ingest_folder(request: IngestRequest):
                 ids=ids[i:i+batch_size]
             )
             
-        save_project(folder_path)
+        save_project(github_url)
         active_collection_name = coll_name
-        active_folder_path = folder_path
-        start_watcher(active_folder_path)
-        return {"message": f"Successfully indexed {len(raw_documents)} code snippets from {folder_path}!"}
+        active_folder_path = github_url
+        return {"message": f"Successfully indexed {len(raw_documents)} code snippets from {github_url}!"}
     except Exception as e:
         return {"error": f"Error during indexing: {str(e)}"}
 
@@ -422,12 +436,29 @@ def build_file_tree(root_path):
     return dirs + files
 
 
+def get_repo_dir(github_url):
+    clean_url = github_url.strip().rstrip('/')
+    parts = clean_url.split('/')
+    if len(parts) < 5: return None
+    owner = parts[-2]
+    repo = parts[-1]
+    base = os.path.join(BASE_DIR, "repos", owner)
+    for branch in ['main', 'master']:
+        path = os.path.join(base, f"{repo}-{branch}")
+        if os.path.exists(path):
+            return path
+    return None
+
 @app.get("/api/file_tree")
 async def api_file_tree():
     if not active_folder_path:
         return JSONResponse(content={"error": "No project active"}, status_code=400)
+        
+    repo_dir = get_repo_dir(active_folder_path)
+    if not repo_dir:
+        return JSONResponse(content={"error": "Repository not downloaded"}, status_code=400)
     
-    tree = build_file_tree(active_folder_path)
+    tree = build_file_tree(repo_dir)
     return {"tree": tree}
 
 
@@ -439,11 +470,15 @@ async def api_file_tree():
 async def api_file_content(path: str):
     if not active_folder_path:
         return JSONResponse(content={"error": "No project active"}, status_code=400)
+        
+    repo_dir = get_repo_dir(active_folder_path)
+    if not repo_dir:
+        return JSONResponse(content={"error": "Repository not downloaded"}, status_code=400)
 
     # Security: resolve the path and verify it's within the active project
     try:
         resolved = os.path.realpath(path)
-        project_root = os.path.realpath(active_folder_path)
+        project_root = os.path.realpath(repo_dir)
         if not resolved.startswith(project_root):
             return JSONResponse(
                 content={"error": "Access denied: path is outside the active project."},
@@ -540,12 +575,14 @@ async def websocket_terminal(websocket: WebSocket):
     await websocket.accept()
 
     # Determine the working directory
-    cwd = active_folder_path if active_folder_path else BASE_DIR
+    repo_dir = get_repo_dir(active_folder_path) if active_folder_path else None
+    cwd = repo_dir if repo_dir else BASE_DIR
 
     try:
-        # Spawn a shell subprocess
+        # Spawn a shell subprocess (bash on linux, cmd on windows)
+        shell_cmd = "bash" if os.name == "posix" else "cmd.exe"
         process = subprocess.Popen(
-            "cmd.exe",
+            shell_cmd,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

@@ -775,8 +775,8 @@
     <div class="tb-separator"></div>
 
     <div class="tb-group">
-        <input type="text" id="folderInput" class="tb-input" placeholder="Folder path to index..." style="min-width:180px;">
-        <button class="tb-btn primary" id="indexBtn" onclick="indexFolder()">Index</button>
+        <input type="text" id="folderInput" class="tb-input" placeholder="GitHub Repository URL..." style="min-width:220px;">
+        <button class="tb-btn primary" id="indexBtn" onclick="indexFolder()">Import</button>
     </div>
 
     <div class="tb-separator"></div>
@@ -1329,8 +1329,8 @@
     }
 
     async function switchProject() {
-        const path = document.getElementById('projectSelect').value;
-        if (!path) return;
+        const githubUrl = document.getElementById('projectSelect').value;
+        if (!githubUrl) return;
 
         const status = document.getElementById('indexStatus');
         status.innerHTML = '<span style="color:var(--text-muted);">Switching...</span>';
@@ -1339,7 +1339,7 @@
             const res = await fetch('/api/projects/set', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ folder_path: path })
+                body: JSON.stringify({ github_url: githubUrl })
             });
             const data = await res.json();
             if (data.error) {
@@ -1359,9 +1359,9 @@
     }
 
     async function indexFolder() {
-        const folderPath = document.getElementById('folderInput').value.trim();
-        if (!folderPath) {
-            alert('Please enter a valid folder path.');
+        const githubUrl = document.getElementById('folderInput').value.trim();
+        if (!githubUrl) {
+            alert('Please enter a valid GitHub URL.');
             return;
         }
 
@@ -1369,14 +1369,14 @@
         const status = document.getElementById('indexStatus');
 
         btn.disabled = true;
-        btn.textContent = 'Indexing...';
-        status.innerHTML = '<span style="color:var(--text-muted);">Scanning and indexing files...</span>';
+        btn.textContent = 'Importing...';
+        status.innerHTML = '<span style="color:#fbbf24;">⏳ Downloading & Indexing... This may take a minute.</span>';
 
         try {
             const response = await fetch('/api/ingest', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ folder_path: folderPath })
+                body: JSON.stringify({ github_url: githubUrl })
             });
 
             const data = await response.json();
