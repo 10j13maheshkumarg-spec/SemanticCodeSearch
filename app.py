@@ -76,7 +76,10 @@ observer = None
 def get_projects():
     if os.path.exists(PROJECTS_FILE):
         with open(PROJECTS_FILE, 'r') as f:
-            return json.load(f)
+            projects = json.load(f)
+            # Filter out old local paths, keeping only valid HTTP/GitHub URLs
+            valid_projects = [p for p in projects if p.startswith("http")]
+            return valid_projects
     return []
 
 def save_project(folder_path):
