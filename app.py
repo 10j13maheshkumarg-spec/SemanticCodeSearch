@@ -11,6 +11,7 @@ import subprocess
 import requests
 from pathlib import Path
 from fastapi import FastAPI, Request, BackgroundTasks, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -30,6 +31,14 @@ except Exception as e:
     print(f"Groq Client failed to initialize: {e}")
 
 app = FastAPI(title="Semantic Code Search API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # Allow mobile apps to connect
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 HF_API_URL = "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2"
 HF_TOKEN = os.getenv("HF_TOKEN")
