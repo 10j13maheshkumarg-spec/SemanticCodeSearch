@@ -10,3 +10,5 @@ groq
 watchdog
 aiofiles
 websockets
+onnxruntime
+tokenizers

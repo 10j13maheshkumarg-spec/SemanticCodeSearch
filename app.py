@@ -40,33 +40,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-HF_API_URL = "https://router.huggingface.co/hf-inference/models/sentence-transformers/all-MiniLM-L6-v2"
-HF_TOKEN = os.getenv("HF_TOKEN")
 
-def get_embeddings(texts):
-    if not HF_TOKEN:
-        print("HF_TOKEN missing. Using dummy embeddings.")
-        return [[0.0]*384 for _ in texts]
-        
-    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-    
-    # Send request with retry logic for model loading
-    for attempt in range(3):
-        try:
-            response = requests.post(HF_API_URL, headers=headers, json={"inputs": texts, "options": {"wait_for_model": True}})
-            if response.status_code == 200:
-                return response.json()
-            elif response.status_code == 503:
-                time.sleep(2) # wait for model to load on HF side
-            else:
-                print(f"HF API Error {response.status_code}: {response.text}")
-                break # 401/404 errors won't fix themselves with retries
-        except Exception as e:
-            print(f"HF API request failed: {e}")
-            break
-            
-    print("WARNING: HuggingFace API failed. Falling back to zero-embeddings so Keyword Search still works.")
-    return [[0.0]*384 for _ in texts]
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 chroma_path = os.path.join(BASE_DIR, "chroma_db")
@@ -340,13 +314,9 @@ async def ingest_folder(request: IngestRequest):
             pickle.dump(bm25_data, f)
 
         # Build Chroma Semantic Index using enriched texts
-        batch_size = 50 # HF API limits
+        batch_size = 50 # Limit batch size
         for i in range(0, len(raw_documents), batch_size):
-            batch_docs = enriched_documents[i:i+batch_size]
-            batch_embeddings = get_embeddings(batch_docs)
-            
             collection.upsert(
-                embeddings=batch_embeddings,
                 documents=raw_documents[i:i+batch_size],
                 metadatas=metadatas[i:i+batch_size],
                 ids=ids[i:i+batch_size]
@@ -373,10 +343,9 @@ async def search_code(search_query: SearchQuery):
         semantic_map = {}
         if search_query.search_mode in ["semantic", "hybrid"]:
             try:
-                query_embedding = get_embeddings([search_query.query])
-                results = collection.query(query_embeddings=query_embedding, n_results=search_query.n_results * 2)
+                results = collection.query(query_texts=[search_query.query], n_results=search_query.n_results * 2)
             except Exception as e:
-                return {"error": f"HF API Error: {str(e)}"}
+                return {"error": f"Semantic Search Error: {str(e)}"}
             
             if results['documents'] and len(results['documents']) > 0:
                 for doc, meta, dist, doc_id in zip(results['documents'][0], results['metadatas'][0], results['distances'][0], results['ids'][0]):
@@ -388,11 +357,7 @@ async def search_code(search_query: SearchQuery):
                     }
 
         # 2. BM25 Exact Keyword Search
-        # Auto-fallback to keyword if semantic failed (e.g. HF API returned zero-vectors causing all 0.0 scores)
-        max_semantic_score = max([d["semantic_score"] for d in semantic_map.values()]) if semantic_map else 0.0
-        force_keyword = search_query.search_mode == "semantic" and max_semantic_score < 0.1
-        
-        if search_query.search_mode in ["keyword", "hybrid"] or force_keyword:
+        if search_query.search_mode in ["keyword", "hybrid"]:
             bm25_path = os.path.join(BASE_DIR, f"bm25_{active_collection_name}.pkl")
             if os.path.exists(bm25_path):
                 with open(bm25_path, 'rb') as f:
@@ -424,7 +389,7 @@ async def search_code(search_query: SearchQuery):
         # 3. Mode Filtering & Merge
         final_results = []
         for doc_id, data in semantic_map.items():
-            if search_query.search_mode == "semantic" and not force_keyword:
+            if search_query.search_mode == "semantic":
                 if data["semantic_score"] >= 0.25:
                     data["similarity_score"] = data["semantic_score"] * 100
                     final_results.append(data)
