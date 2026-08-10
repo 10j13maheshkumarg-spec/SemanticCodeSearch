@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Semantic Code Search — Web IDE</title>
+    <title>Semantic Code Search ΓÇö Web IDE</title>
     <meta name="description" content="A premium web-based IDE with semantic code search, AI chat, Monaco editor, and integrated terminal.">
 
     <!-- Google Fonts -->
@@ -762,7 +762,7 @@
 <!-- ===== TOP BAR ===== -->
 <div id="topBar">
     <div class="logo">
-        <div class="logo-icon">⚡</div>
+        <div class="logo-icon">ΓÜí</div>
         <span>CodeSearch IDE</span>
     </div>
 
@@ -775,8 +775,8 @@
     <div class="tb-separator"></div>
 
     <div class="tb-group">
-        <input type="text" id="folderInput" class="tb-input" placeholder="GitHub Repository URL..." style="min-width:220px;">
-        <button class="tb-btn primary" id="indexBtn" onclick="indexFolder()">Import</button>
+        <input type="text" id="folderInput" class="tb-input" placeholder="Folder path to index..." style="min-width:180px;">
+        <button class="tb-btn primary" id="indexBtn" onclick="indexFolder()">Index</button>
     </div>
 
     <div class="tb-separator"></div>
@@ -798,9 +798,9 @@
 
     <div style="flex:1;"></div>
 
-    <button class="tb-toggle-btn active" id="toggleSidebar" onclick="togglePanel('sidebar')" title="Toggle Explorer">📁</button>
-    <button class="tb-toggle-btn active" id="toggleTerminal" onclick="togglePanel('terminal')" title="Toggle Terminal">⬛</button>
-    <button class="tb-toggle-btn active" id="toggleChat" onclick="togglePanel('chat')" title="Toggle AI Chat">💬</button>
+    <button class="tb-toggle-btn active" id="toggleSidebar" onclick="togglePanel('sidebar')" title="Toggle Explorer">≡ƒôü</button>
+    <button class="tb-toggle-btn active" id="toggleTerminal" onclick="togglePanel('terminal')" title="Toggle Terminal">Γ¼¢</button>
+    <button class="tb-toggle-btn active" id="toggleChat" onclick="togglePanel('chat')" title="Toggle AI Chat">≡ƒÆ¼</button>
 </div>
 
 <!-- ===== MAIN LAYOUT ===== -->
@@ -810,11 +810,11 @@
     <div id="sidebar">
         <div class="sidebar-header">
             <span>Explorer</span>
-            <button class="refresh-btn" onclick="loadFileTree()" title="Refresh">🔄</button>
+            <button class="refresh-btn" onclick="loadFileTree()" title="Refresh">≡ƒöä</button>
         </div>
         <div id="fileTreeContainer">
             <div class="empty-state" style="padding:30px 14px; font-size: 0.78rem;">
-                <div class="big-icon">📂</div>
+                <div class="big-icon">≡ƒôé</div>
                 Select a project to view files.
             </div>
         </div>
@@ -825,7 +825,7 @@
         <!-- Tab Bar -->
         <div id="tabBar">
             <div class="tab active" id="tabResults" onclick="showResults()">
-                <span>🔍</span>
+                <span>≡ƒöì</span>
                 <span>Search Results</span>
             </div>
         </div>
@@ -836,7 +836,7 @@
             <div id="resultsArea">
                 <div class="loader" id="loader"></div>
                 <div class="empty-state" id="emptyState">
-                    <div class="big-icon">🔎</div>
+                    <div class="big-icon">≡ƒöÄ</div>
                     <strong style="font-size:1.1rem;">Semantic Code Search</strong><br><br>
                     Enter a natural language query to search your codebase.<br>
                     <span style="opacity:0.6; font-size:0.82rem;">Results will appear here. Click any result to open it in the editor.</span>
@@ -849,7 +849,7 @@
         <div id="terminalArea">
             <div class="terminal-header">
                 <span>Terminal</span>
-                <button onclick="togglePanel('terminal')" title="Close Terminal">✕</button>
+                <button onclick="togglePanel('terminal')" title="Close Terminal">Γ£ò</button>
             </div>
             <div id="terminalContainer"></div>
         </div>
@@ -858,7 +858,7 @@
     <!-- RIGHT PANEL (AI CHAT) -->
     <div id="chatPanel">
         <div class="chat-header">
-            <span class="sparkle">✨</span>
+            <span class="sparkle">Γ£¿</span>
             AI Assistant
         </div>
         <div id="chatMessages">
@@ -878,10 +878,10 @@
 <div id="statusBar">
     <div class="left">
         <span id="statusProject">No project</span>
-        <span id="statusFile">—</span>
+        <span id="statusFile">ΓÇö</span>
     </div>
     <div class="right">
-        <span id="statusLang">—</span>
+        <span id="statusLang">ΓÇö</span>
         <span>UTF-8</span>
     </div>
 </div>
@@ -926,18 +926,18 @@
     function getFileIcon(filename) {
         const ext = filename.split('.').pop().toLowerCase();
         const icons = {
-            'py': '🐍', 'js': '📜', 'jsx': '⚛️', 'ts': '🔷', 'tsx': '⚛️',
-            'html': '🌐', 'htm': '🌐', 'css': '🎨', 'scss': '🎨',
-            'md': '📝', 'json': '📋', 'yaml': '📋', 'yml': '📋',
-            'toml': '⚙️', 'cfg': '⚙️', 'ini': '⚙️', 'env': '⚙️',
-            'sh': '💲', 'bash': '💲', 'bat': '💲', 'ps1': '💲',
-            'sql': '🗃️', 'db': '🗃️', 'svg': '🖼️', 'png': '🖼️', 'jpg': '🖼️',
-            'gif': '🖼️', 'ico': '🖼️', 'txt': '📄', 'log': '📄',
-            'xml': '📰', 'csv': '📊', 'lock': '🔒', 'gitignore': '🔒',
-            'rs': '🦀', 'go': '🐹', 'java': '☕', 'cpp': '⚙️', 'c': '⚙️',
-            'h': '⚙️', 'rb': '💎', 'php': '🐘', 'r': '📈', 'dart': '🎯',
+            'py': '≡ƒÉì', 'js': '≡ƒô£', 'jsx': 'ΓÜ¢∩╕Å', 'ts': '≡ƒö╖', 'tsx': 'ΓÜ¢∩╕Å',
+            'html': '≡ƒîÉ', 'htm': '≡ƒîÉ', 'css': '≡ƒÄ¿', 'scss': '≡ƒÄ¿',
+            'md': '≡ƒô¥', 'json': '≡ƒôï', 'yaml': '≡ƒôï', 'yml': '≡ƒôï',
+            'toml': 'ΓÜÖ∩╕Å', 'cfg': 'ΓÜÖ∩╕Å', 'ini': 'ΓÜÖ∩╕Å', 'env': 'ΓÜÖ∩╕Å',
+            'sh': '≡ƒÆ▓', 'bash': '≡ƒÆ▓', 'bat': '≡ƒÆ▓', 'ps1': '≡ƒÆ▓',
+            'sql': '≡ƒùâ∩╕Å', 'db': '≡ƒùâ∩╕Å', 'svg': '≡ƒû╝∩╕Å', 'png': '≡ƒû╝∩╕Å', 'jpg': '≡ƒû╝∩╕Å',
+            'gif': '≡ƒû╝∩╕Å', 'ico': '≡ƒû╝∩╕Å', 'txt': '≡ƒôä', 'log': '≡ƒôä',
+            'xml': '≡ƒô░', 'csv': '≡ƒôè', 'lock': '≡ƒöÆ', 'gitignore': '≡ƒöÆ',
+            'rs': '≡ƒªÇ', 'go': '≡ƒÉ╣', 'java': 'Γÿò', 'cpp': 'ΓÜÖ∩╕Å', 'c': 'ΓÜÖ∩╕Å',
+            'h': 'ΓÜÖ∩╕Å', 'rb': '≡ƒÆÄ', 'php': '≡ƒÉÿ', 'r': '≡ƒôê', 'dart': '≡ƒÄ»',
         };
-        return icons[ext] || '📄';
+        return icons[ext] || '≡ƒôä';
     }
 
     // ===== LANGUAGE DETECTION FOR MONACO =====
@@ -1054,7 +1054,7 @@
             terminalWs = new WebSocket(wsUrl);
 
             terminalWs.onopen = () => {
-                terminal.write('\x1b[32m● Connected to terminal.\x1b[0m\r\n');
+                terminal.write('\x1b[32mΓùÅ Connected to terminal.\x1b[0m\r\n');
             };
 
             terminalWs.onmessage = (event) => {
@@ -1062,11 +1062,11 @@
             };
 
             terminalWs.onclose = () => {
-                terminal.write('\r\n\x1b[31m● Connection closed.\x1b[0m\r\n');
+                terminal.write('\r\n\x1b[31mΓùÅ Connection closed.\x1b[0m\r\n');
             };
 
             terminalWs.onerror = () => {
-                terminal.write('\r\n\x1b[31m● WebSocket error.\x1b[0m\r\n');
+                terminal.write('\r\n\x1b[31mΓùÅ WebSocket error.\x1b[0m\r\n');
             };
 
             terminal.onData((data) => {
@@ -1075,7 +1075,7 @@
                 }
             });
         } catch(e) {
-            terminal.write('\x1b[31m● Failed to connect terminal WebSocket.\x1b[0m\r\n');
+            terminal.write('\x1b[31mΓùÅ Failed to connect terminal WebSocket.\x1b[0m\r\n');
         }
     }
 
@@ -1086,18 +1086,18 @@
             const res = await fetch('/api/file_tree');
             const data = await res.json();
             if (data.error) {
-                container.innerHTML = `<div class="empty-state" style="padding:20px 14px; font-size:0.78rem; color:#fca5a5;">⚠️ ${escapeHtml(data.error)}</div>`;
+                container.innerHTML = `<div class="empty-state" style="padding:20px 14px; font-size:0.78rem; color:#fca5a5;">ΓÜá∩╕Å ${escapeHtml(data.error)}</div>`;
                 return;
             }
             fileTreeData = data.tree || [];
             container.innerHTML = '';
             if (fileTreeData.length === 0) {
-                container.innerHTML = '<div class="empty-state" style="padding:30px 14px; font-size:0.78rem;"><div class="big-icon">📂</div>No files found.</div>';
+                container.innerHTML = '<div class="empty-state" style="padding:30px 14px; font-size:0.78rem;"><div class="big-icon">≡ƒôé</div>No files found.</div>';
                 return;
             }
             renderTree(container, fileTreeData, 0);
         } catch(e) {
-            container.innerHTML = '<div class="empty-state" style="padding:30px 14px; font-size:0.78rem;"><div class="big-icon">📂</div>Select a project to view files.</div>';
+            container.innerHTML = '<div class="empty-state" style="padding:30px 14px; font-size:0.78rem;"><div class="big-icon">≡ƒôé</div>Select a project to view files.</div>';
         }
     }
 
@@ -1113,12 +1113,12 @@
 
                 const arrow = document.createElement('span');
                 arrow.className = 'arrow';
-                arrow.textContent = '▶';
+                arrow.textContent = 'Γû╢';
                 folderDiv.appendChild(arrow);
 
                 const icon = document.createElement('span');
                 icon.className = 'icon';
-                icon.textContent = '📁';
+                icon.textContent = '≡ƒôü';
                 folderDiv.appendChild(icon);
 
                 const name = document.createElement('span');
@@ -1171,7 +1171,7 @@
     function toggleFolder(folderDiv, childContainer, icon, arrow) {
         const isCollapsed = childContainer.classList.contains('collapsed');
         childContainer.classList.toggle('collapsed');
-        icon.textContent = isCollapsed ? '📂' : '📁';
+        icon.textContent = isCollapsed ? '≡ƒôé' : '≡ƒôü';
         arrow.classList.toggle('open', isCollapsed);
     }
 
@@ -1247,7 +1247,7 @@
             tab.innerHTML = `
                 <span>${getFileIcon(filename)}</span>
                 <span>${escapeHtml(filename)}</span>
-                <span class="tab-close" onclick="event.stopPropagation(); closeFileTab(this.parentElement);">✕</span>
+                <span class="tab-close" onclick="event.stopPropagation(); closeFileTab(this.parentElement);">Γ£ò</span>
             `;
             tab.onclick = () => openFileInEditor(filepath);
             tabBar.appendChild(tab);
@@ -1296,8 +1296,8 @@
         if (resultsTab) resultsTab.classList.add('active');
 
         currentFilePath = null;
-        document.getElementById('statusFile').textContent = '—';
-        document.getElementById('statusLang').textContent = '—';
+        document.getElementById('statusFile').textContent = 'ΓÇö';
+        document.getElementById('statusLang').textContent = 'ΓÇö';
     }
 
     // ===== PROJECTS =====
@@ -1306,7 +1306,7 @@
             const res = await fetch('/api/projects');
             const data = await res.json();
             const select = document.getElementById('projectSelect');
-            select.innerHTML = '<option value="">— Select Project —</option>';
+            select.innerHTML = '<option value="">ΓÇö Select Project ΓÇö</option>';
 
             data.projects.forEach(p => {
                 const opt = document.createElement('option');
@@ -1320,7 +1320,7 @@
 
             if (data.active) {
                 const parts = data.active.replace(/\\\\/g, '/').split('/');
-                document.getElementById('indexStatus').innerHTML = `<span style="color:#10b981;">● ${parts[parts.length - 1] || data.active}</span>`;
+                document.getElementById('indexStatus').innerHTML = `<span style="color:#10b981;">ΓùÅ ${parts[parts.length - 1] || data.active}</span>`;
                 document.getElementById('statusProject').textContent = parts[parts.length - 1] || data.active;
             }
         } catch (e) {
@@ -1329,8 +1329,8 @@
     }
 
     async function switchProject() {
-        const githubUrl = document.getElementById('projectSelect').value;
-        if (!githubUrl) return;
+        const path = document.getElementById('projectSelect').value;
+        if (!path) return;
 
         const status = document.getElementById('indexStatus');
         status.innerHTML = '<span style="color:var(--text-muted);">Switching...</span>';
@@ -1339,14 +1339,14 @@
             const res = await fetch('/api/projects/set', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ github_url: githubUrl })
+                body: JSON.stringify({ folder_path: path })
             });
             const data = await res.json();
             if (data.error) {
-                status.innerHTML = `<span style="color:#ef4444;">❌ ${escapeHtml(data.error)}</span>`;
+                status.innerHTML = `<span style="color:#ef4444;">Γ¥î ${escapeHtml(data.error)}</span>`;
             } else {
                 const parts = data.active.replace(/\\\\/g, '/').split('/');
-                status.innerHTML = `<span style="color:#10b981;">● ${parts[parts.length - 1] || data.active}</span>`;
+                status.innerHTML = `<span style="color:#10b981;">ΓùÅ ${parts[parts.length - 1] || data.active}</span>`;
                 document.getElementById('statusProject').textContent = parts[parts.length - 1] || data.active;
                 document.getElementById('resultsContainer').innerHTML = '';
                 document.getElementById('emptyState').style.display = '';
@@ -1354,14 +1354,14 @@
                 await loadFileTree();
             }
         } catch (e) {
-            status.innerHTML = '<span style="color:#ef4444;">❌ Failed to switch.</span>';
+            status.innerHTML = '<span style="color:#ef4444;">Γ¥î Failed to switch.</span>';
         }
     }
 
     async function indexFolder() {
-        const githubUrl = document.getElementById('folderInput').value.trim();
-        if (!githubUrl) {
-            alert('Please enter a valid GitHub URL.');
+        const folderPath = document.getElementById('folderInput').value.trim();
+        if (!folderPath) {
+            alert('Please enter a valid folder path.');
             return;
         }
 
@@ -1369,28 +1369,28 @@
         const status = document.getElementById('indexStatus');
 
         btn.disabled = true;
-        btn.textContent = 'Importing...';
-        status.innerHTML = '<span style="color:#fbbf24;">⏳ Downloading & Indexing... This may take a minute.</span>';
+        btn.textContent = 'Indexing...';
+        status.innerHTML = '<span style="color:var(--text-muted);">Scanning and indexing files...</span>';
 
         try {
             const response = await fetch('/api/ingest', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ github_url: githubUrl })
+                body: JSON.stringify({ folder_path: folderPath })
             });
 
             const data = await response.json();
 
             if (data.error) {
-                status.innerHTML = `<span style="color:#ef4444;">❌ ${escapeHtml(data.error)}</span>`;
+                status.innerHTML = `<span style="color:#ef4444;">Γ¥î ${escapeHtml(data.error)}</span>`;
             } else {
-                status.innerHTML = `<span style="color:#10b981;">✅ ${escapeHtml(data.message)}</span>`;
+                status.innerHTML = `<span style="color:#10b981;">Γ£à ${escapeHtml(data.message)}</span>`;
                 await loadProjects();
                 document.getElementById('folderInput').value = '';
                 await loadFileTree();
             }
         } catch (error) {
-            status.innerHTML = '<span style="color:#ef4444;">❌ Failed to connect to backend.</span>';
+            status.innerHTML = '<span style="color:#ef4444;">Γ¥î Failed to connect to backend.</span>';
         } finally {
             btn.disabled = false;
             btn.textContent = 'Index';
@@ -1425,12 +1425,12 @@
             loader.style.display = 'none';
 
             if (data.error) {
-                resultsContainer.innerHTML = `<div class="empty-state" style="color: #fca5a5;">❌ Error: ${escapeHtml(data.error)}</div>`;
+                resultsContainer.innerHTML = `<div class="empty-state" style="color: #fca5a5;">Γ¥î Error: ${escapeHtml(data.error)}</div>`;
                 return;
             }
 
             if (!data.results || data.results.length === 0) {
-                resultsContainer.innerHTML = '<div class="empty-state"><div class="big-icon">🤷</div>No relevant results found.<br><span style="opacity:0.6;">Try a different query or check your indexed project.</span></div>';
+                resultsContainer.innerHTML = '<div class="empty-state"><div class="big-icon">≡ƒñ╖</div>No relevant results found.<br><span style="opacity:0.6;">Try a different query or check your indexed project.</span></div>';
                 return;
             }
 
@@ -1450,7 +1450,7 @@
                     <div class="card-header" onclick="openFileInEditor('${escapeHtml(result.filepath.replace(/\\/g, '\\\\'))}', ${result.start_line})" title="Click to open in editor">
                         <div class="file-info">
                             <span class="badge">${escapeHtml(result.header)}</span>
-                            <span>${escapeHtml(shortPath)} : ${result.start_line}–${result.end_line}</span>
+                            <span>${escapeHtml(shortPath)} : ${result.start_line}ΓÇô${result.end_line}</span>
                         </div>
                         <div class="score">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
@@ -1464,7 +1464,7 @@
 
         } catch (error) {
             loader.style.display = 'none';
-            resultsContainer.innerHTML = '<div class="empty-state" style="color: #fca5a5;">❌ Failed to connect to search engine.</div>';
+            resultsContainer.innerHTML = '<div class="empty-state" style="color: #fca5a5;">Γ¥î Failed to connect to search engine.</div>';
         }
     }
 
