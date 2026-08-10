@@ -388,8 +388,9 @@ async def search_code(search_query: SearchQuery):
                     }
 
         # 2. BM25 Exact Keyword Search
-        # Auto-fallback to keyword if semantic failed (e.g. HF API returned zero-vectors)
-        force_keyword = search_query.search_mode == "semantic" and not semantic_map
+        # Auto-fallback to keyword if semantic failed (e.g. HF API returned zero-vectors causing all 0.0 scores)
+        max_semantic_score = max([d["semantic_score"] for d in semantic_map.values()]) if semantic_map else 0.0
+        force_keyword = search_query.search_mode == "semantic" and max_semantic_score < 0.1
         
         if search_query.search_mode in ["keyword", "hybrid"] or force_keyword:
             bm25_path = os.path.join(BASE_DIR, f"bm25_{active_collection_name}.pkl")
