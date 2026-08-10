@@ -388,7 +388,10 @@ async def search_code(search_query: SearchQuery):
                     }
 
         # 2. BM25 Exact Keyword Search
-        if search_query.search_mode in ["keyword", "hybrid"]:
+        # Auto-fallback to keyword if semantic failed (e.g. HF API returned zero-vectors)
+        force_keyword = search_query.search_mode == "semantic" and not semantic_map
+        
+        if search_query.search_mode in ["keyword", "hybrid"] or force_keyword:
             bm25_path = os.path.join(BASE_DIR, f"bm25_{active_collection_name}.pkl")
             if os.path.exists(bm25_path):
                 with open(bm25_path, 'rb') as f:
@@ -420,11 +423,11 @@ async def search_code(search_query: SearchQuery):
         # 3. Mode Filtering & Merge
         final_results = []
         for doc_id, data in semantic_map.items():
-            if search_query.search_mode == "semantic":
+            if search_query.search_mode == "semantic" and not force_keyword:
                 if data["semantic_score"] >= 0.25:
                     data["similarity_score"] = data["semantic_score"] * 100
                     final_results.append(data)
-            elif search_query.search_mode == "keyword":
+            elif search_query.search_mode == "keyword" or force_keyword:
                 if data["bm25_score"] >= 1.0:
                     data["similarity_score"] = data["bm25_score"] * 10
                     final_results.append(data)
