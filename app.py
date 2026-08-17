@@ -90,6 +90,10 @@ def download_github_repo(github_url):
     owner = parts[-2]
     repo = parts[-1]
     
+    # Security: Validate owner and repo names to prevent Path Traversal
+    if not re.match(r"^[a-zA-Z0-9_.-]+$", owner) or not re.match(r"^[a-zA-Z0-9_.-]+$", repo):
+        raise ValueError("Invalid repository name or owner.")
+    
     # Try downloading main branch first, then master
     branches = ['main', 'master']
     zip_url = None
@@ -489,7 +493,8 @@ async def api_file_content(path: str):
     try:
         resolved = os.path.realpath(path)
         project_root = os.path.realpath(repo_dir)
-        if not resolved.startswith(project_root):
+        # Security: Use commonpath to prevent Directory Traversal bypasses
+        if os.path.commonpath([project_root, resolved]) != project_root:
             return JSONResponse(
                 content={"error": "Access denied: path is outside the active project."},
                 status_code=403
@@ -565,13 +570,13 @@ async def chat_with_code(request: ChatRequest):
     })
 
     try:
-        completion = groq_client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+        chat_completion = groq_client.chat.completions.create(
             messages=messages,
+            model="openai/gpt-oss-20b",
             temperature=0.2,
             max_tokens=1024,
         )
-        return {"answer": completion.choices[0].message.content}
+        return {"answer": chat_completion.choices[0].message.content}
     except Exception as e:
         return {"error": f"LLM Error: {str(e)}"}
 
@@ -583,6 +588,12 @@ async def chat_with_code(request: ChatRequest):
 @app.websocket("/ws/terminal")
 async def websocket_terminal(websocket: WebSocket):
     await websocket.accept()
+
+    # Security: Prevent Remote Code Execution (RCE) in public deployment
+    if os.environ.get("RENDER"):
+        await websocket.send_text("Terminal disabled in public deployment for security reasons.\n")
+        await websocket.close(code=1008)
+        return
 
     # Determine the working directory
     repo_dir = get_repo_dir(active_folder_path) if active_folder_path else None
